@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: xarmy
+      POSTGRES_USER: xarmy
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xarmy -d xarmy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    command: uvicorn app.web:app --host 0.0.0.0 --port 8000
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://xarmy:${DB_PASSWORD}@db:5432/xarmy
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  bot:
+    build: .
+    restart: unless-stopped
+    command: python -m app.bot
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://xarmy:${DB_PASSWORD}@db:5432/xarmy
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
